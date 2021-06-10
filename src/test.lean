@@ -24,7 +24,7 @@ else (h2 :: (merge (h1::t1) t2))
  -- otherwise split
 
 lemma smallersplit {α: Type} : ∀ (a b: α) (xs as bs: list α) , split (a::b::xs) = (as,bs) →
-(as.sizeof < (a::b::xs).sizeof)
+(as.length < (a::b::xs).length)
 :=
 begin
 intros a b xs as bs h,
@@ -35,16 +35,16 @@ cases' h,
 -- | ..
 end
 
-
 def mergeSort {α: Type} (f: α -> α -> bool) : list α → list α
 | [] := []
 | [a] := [a]
 | (a::b::xs) := let p := split (a::b::xs) in
 let as := p.fst in
 let bs := p.snd in
-let pa : as.sizeof < (a::b::xs).sizeof := smallersplit (a::b::xs) as bs _ in
-let da : bs.sizeof < (a::b::xs).sizeof := sorry in
+let pa : as.length < (a::b::xs).length := smallersplit a b xs as bs (by tauto) in
+let da : bs.length < (a::b::xs).length := sorry in
 merge f (mergeSort as) (mergeSort bs)
+using_well_founded { rel_tac := λ _ _, `[exact ⟨_, measure_wf list.length⟩] }
 
 
 /-
