@@ -3,6 +3,13 @@ import tactic.induction
 import data.nat.basic
 open nat
 
+@[elab_as_eliminator]
+lemma list.strong_length_induction {α} {C : list α → Sort*}
+  (rec : ∀ xs : list α, (∀ ys : list α, ys.length < xs.length → C ys) → C xs) :
+  ∀ xs, C xs
+| xs := rec xs (λ ys len, list.strong_length_induction ys)
+using_well_founded { rel_tac := λ _ _, `[ exact ⟨_, measure_wf list.length ⟩]}
+
 example: forall (a b: nat), a + b = b + a := by intros;linarith
 
 def split {α: Type} : list α -> list α × list α
@@ -106,12 +113,13 @@ unsorted ~ mergeSort (f) unsorted
 :=
 begin
   intros unsorted,
-  induction unsorted,
+  induction unsorted using list.strong_length_induction with xs ih,
+  cases xs,
   case nil {
     rw mergeSort
   },
-  case cons: a xs ih {
-    cases' xs,
+  case cons: a xs {
+    cases xs,
     case nil {
       rw mergeSort,
     },
@@ -120,9 +128,8 @@ begin
       simp,
       -- lemma split-doesn't lose elements
       -- lemma merge doesn't lose elements
-
-
-    } 
+      sorry
+    }
   },
 end
 
