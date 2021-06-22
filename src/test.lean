@@ -17,14 +17,92 @@ def split {α: Type} : list α -> list α × list α
 | [a] := ([a], [])
 | f := (list.take (f.length/2) f, list.drop (f.length/2) f)
 
+/-
+lemma reverse_split {α: Type} : ∀ (xs a b: list α), split xs = (a,b) → a ++ b = xs
+:= 
+begin
+  intros xs a b hxs,
+  --ext1,
+  induction xs,
+
+  case nil {
+    rw split at hxs,
+  },
+  case cons {
+    sorry
+  }
+end
+-/
+
+lemma add_nils {α: Type} : [] ++ [] ~ @list.nil α 
+:=
+begin
+  refl,
+end   
+
+lemma split_preserves {α : Type} : ∀ (x a b: list α) , split x = (a, b) → 
+(append a b) = x   
+:=
+begin
+  intros x a b hx,
+  cases' x,
+  case nil {
+    cases' hx,
+    refl,
+  },
+  case cons: c {
+    cases' x,
+    case nil {
+      rw split at hx,
+      finish,
+    },
+    case cons: d {
+      rw split at hx,
+      cases' hx, -- cases' works here by replacing ...
+      exact list.take_append_drop ((c :: d :: x).length / 2) (c :: d :: x)
+    }
+  }
+
+  /-
+  induction x generalizing a b, --when the indc. is too rest. generalizing the goal could be a way.
+  case nil {
+    rw split at hx,
+    -- cases' works best here because of the constructor in the equation. 
+    cases' hx,
+    refl,
+    --apply add_nils,
+    --finish,
+    --finish,
+  },
+  case cons: y ys ih {
+    -- list.take produces a sublist and it's a sub perm 
+    -- list.drop produces a sublist and it's a sub perm
+    -- a is a sub perm then and b too
+    -- a ++ b is a perm then 
+    -/
+
+    /-
+    cases' y::ys,
+    case nil {
+      
+
+    },
+    case cons {
+
+    },
+    -/
+end 
+
+-- Merge
 
 def merge {α : Type} (lt: α → α → bool) : list α → list α → list α
 | [] a := a
-| a [] := a
+| (h1::t1) [] := h1::t1
 | (h1::t1) (h2::t2) :=
 if lt h1 h2 then (h1 :: (merge t1 (h2::t2)))
 else (h2 :: (merge (h1::t1) t2))
 
+--try solving it using the first one above 
 
 -- length is odd!
 
@@ -33,7 +111,7 @@ else (h2 :: (merge (h1::t1) t2))
  -- otherwise split
 
 lemma smallersplit {α: Type} : ∀ (a b: α) (xs as bs: list α) , split (a::b::xs) = (as,bs) →
-(as.length < (a::b::xs).length) --∧ bs ....
+(as.length < (a::b::xs).length) 
 :=
 begin
 intros a b xs as bs h,
@@ -53,16 +131,7 @@ begin
   apply nat.sub_lt_self,
   linarith,
   simp,
-  /-
-  induction a,
-  case nat.zero {
-    sorry
-  },
-  case nat.succ {
-    sorry
-  }-/
 end
-
 
 lemma smallersplit_right {α: Type} : ∀ (a b: α) (xs as bs: list α) , split (a::b::xs) = (as,bs) →
 (bs.length < (a::b::xs).length)
@@ -77,16 +146,12 @@ apply smaller_than_its_half,
 end
 
 
-
 def mergeSort {α: Type} (f: α -> α -> bool) : list α → list α
 | [] := []
 | (a::[]) := [a]
 | (a::b::xs) := let p := split (a::b::xs) in
 let as := p.fst in
 let bs := p.snd in
---let p := (as, bs) in
---let p2 := split (a::b::xs) in
---let p2 := (bs,as) in
 let pa : as.length < (a::b::xs).length := smallersplit a b xs as bs (by tauto) in
 let da : bs.length < (a::b::xs).length := smallersplit_right a b xs as bs (by tauto) in
 merge f (mergeSort as) (mergeSort bs)
@@ -114,6 +179,7 @@ unsorted ~ mergeSort (f) unsorted
 begin
   intros unsorted,
   induction unsorted using list.strong_length_induction with xs ih,
+  simp at ih,
   cases xs,
   case nil {
     rw mergeSort
@@ -128,13 +194,11 @@ begin
       simp,
       -- lemma split-doesn't lose elements
       -- lemma merge doesn't lose elements
+      -- lemma splitting produces smaller lists
       sorry
-    }
+    } 
   },
 end
-
-
-
 
 
 #check list.perm
@@ -146,7 +210,7 @@ end
 
 -- Merging two sorted lists produces a sorted list 
 lemma merging_two_sorted {α : Type} (f: α -> α -> bool): ∀ (a b: list α), 
---list.sorted a → list.sorted b →  
+list.sorted a → sorted b   
 :=
 begin
   sorry
