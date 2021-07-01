@@ -1,6 +1,7 @@
 import tactic.linarith
 import tactic.induction
 import data.nat.basic
+import data.list.sort
 open nat
 
 @[elab_as_eliminator]
@@ -12,7 +13,6 @@ using_well_founded { rel_tac := λ _ _, `[ exact ⟨_, measure_wf list.length �
 
 example: forall (a b: nat), a + b = b + a := by intros;linarith
 
-
 -- notes:
 -- symmetry, --flips the sides of any goal, if the goal is about a symm rel
 -- induction x generalizing a b, --when the indc. is too rest. generalizing the goal could be a way.
@@ -23,21 +23,7 @@ def split {α: Type} : list α -> list α × list α
 | [a] := ([a], [])
 | f := (list.take (f.length/2) f, list.drop (f.length/2) f)
 
-/-
-lemma reverse_split {α: Type} : ∀ (xs a b: list α), split xs = (a,b) → a ++ b = xs
-:= 
-begin
-  intros xs a b hxs,
-  --ext1,
-  induction xs,
-  case nil {
-    rw split at hxs,
-  },
-  case cons {
-    sorry
-  }
-end
--/
+
 
 lemma add_nils {α: Type} : [] ++ [] ~ @list.nil α 
 :=
@@ -63,7 +49,6 @@ begin
     case cons: d {
       rw split,
       simp,
-      --cases' hx, -- cases' works here by replacing ...
     }
   },
 end
@@ -86,8 +71,6 @@ begin
     case cons: d {
       rw split,
       simp,
-      --cases' hx, -- cases' works here by replacing ...
-      --exact list.take_append_drop ((c :: d :: x).length / 2) (c :: d :: x)
     }
   }
 end
@@ -116,7 +99,7 @@ begin
     },
     case cons: d {
       rw split at hx,
-      cases' hx, -- cases' works here by replacing ...
+      cases' hx, 
       exact list.take_append_drop ((c :: d :: x).length / 2) (c :: d :: x)
     }
   }
@@ -156,20 +139,16 @@ end
 begin
   --intros x hx, --watch out that you could write non-terminating functions
   -- this will give a well founded error
-  --apply merge_preserves,
-  --apply hx,
-
   rw merge,
   by_cases hab: (lt a b: Prop),
   {
-    rw [if_pos hab], --simplified hx with hab
-    --subst hx,
+    rw [if_pos hab],
     simp,
     apply merge_preserves as (b::bs), --matching recursion with induc.
   },
   {
     rw [if_neg hab],
-    transitivity, --getting rid of the b by using transitivity
+    transitivity, 
     swap,
     {
       apply list.perm_append_comm,
@@ -191,7 +170,7 @@ end
 -- added to meet the goal at the verification where it asked for 
 -- the goal to be of the shape below
 lemma smallersplit_2 {α: Type}: ∀ (a b: α) (bs: list α),
-(split(a :: b :: bs)).fst.length < (a :: b :: bs).length
+(split (a :: b :: bs)).fst.length < (a :: b :: bs).length
 :=
 begin
   intros a b bs,
@@ -206,11 +185,14 @@ lemma smallersplit {α: Type} : ∀ (a b: α) (xs as bs: list α) , split (a::b:
 (as.length < (a::b::xs).length) 
 :=
 begin
-intros a b xs as bs h,
-rw split at h,
-cases' h,
-simp, 
-exact div_lt_self' (xs.length + 1) 0,
+  intros a b xs as bs h,
+  simp [h, smallersplit_2],
+  have has: (split(a::b::xs)).fst = as,
+  {
+    simp [h],
+  },
+  subst has,
+  apply smallersplit_2,
 end
 
 --#check div_lt_self' 
@@ -219,7 +201,6 @@ end
 lemma smaller_than_its_half (a : ℕ) : (a + 2) - ((a+2)/2) < a+2 
 := 
 begin 
-  --rw nat.sub_lt_left_iff_lt_add,
   apply nat.sub_lt_self,
   linarith,
   simp,
@@ -240,12 +221,13 @@ lemma smallersplit_right {α: Type} : ∀ (a b: α) (xs as bs: list α) , split 
 (bs.length < (a::b::xs).length)
 :=
 begin
-intros a b xs as bs h,
-rw split at h,
-cases' h,
-simp, 
-ring_nf,
-apply smaller_than_its_half, 
+  intros a b xs as bs h,
+  have hbs: (split(a::b::xs)).snd = bs,
+  {
+    simp [h],
+  },
+  subst hbs,
+  apply smallersplit_right_2,
 end
 
 
@@ -273,21 +255,35 @@ proving correct
 3. result contains only the input elements: none new added
 -/
 
---used below
-lemma list.perm_nil_cons_2 {α: Type} {y: α} {xs ys: list α}: list.nil ~ xs → xs = list.nil → xs ++ y :: ys ~ y :: ys  -- ~ @list.nil α 
+
+/-
+Coding style:
+1. spaces between elements and their type
+2. spaces between a lemma and its args
+3. around colons
+4. indentation
+5. ∀ (), no space before comma
+6. indent type sign by either 2 or 4 spaces (314)
+7. begin and end no indent
+8. := same line as sign.
+9. always a space between a func and its arg: split (...)
+10. one line caes on the same line
+
+-/
+
+lemma list.perm_nil_cons_2 {α : Type} {y : α} {xs ys: list α}: list.nil ~ xs → xs = list.nil → xs ++ y :: ys ~ y :: ys  -- ~ @list.nil α 
 :=
 begin
   intros hxs hxs',
   finish,
 end
 
-lemma perm_concats_2 {α : Type}:∀ (xs xs' ys ys': list α) ,
-xs ~ xs' → ys ~ ys' → xs ++ ys ~ xs' ++ ys'
-:=
+lemma perm_concats_2 {α : Type} : ∀ (xs xs' ys ys': list α),
+  xs ~ xs' → ys ~ ys' → xs ++ ys ~ xs' ++ ys' :=
 begin
   intros xs xs' ys ys' hxs hys,
   exact list.perm.append hxs hys,
-end
+end 
 
 lemma perm_concats {α : Type}:∀ (xs xs' ys ys': list α) ,
 xs ~ xs' → ys ~ ys' → xs ++ ys ~ xs' ++ ys'
@@ -298,13 +294,11 @@ begin
   case nil {
     simp,
     transitivity,
-    {
-      apply hys,
-    },
-    {
-      symmetry,
+    { apply hys },
+    { symmetry,
       cases ys',
-      case nil {
+      case nil
+      {
         simp,
         exact list.perm.symm hxs,
       },
@@ -317,9 +311,7 @@ begin
           exact list.perm_nil.mp (list.perm.symm hxs),
         }
       }
-    
     },
-    --apply list.perm.nil_eq,
   },
   case cons: x xs { --here the naming case again, xs refers to the tail of xs
     exact list.perm.append hxs hys,
@@ -327,6 +319,7 @@ begin
 
 end
 
+/-
 --are the curly brackets here okay?
 lemma list.perm_nil_cons {α: Type} {xs ys: list α}: list.nil ~ xs → xs ++ ys ~ ys  -- ~ @list.nil α 
 :=
@@ -341,11 +334,11 @@ begin
     sorry
   }
 end   
-
+-/
 
 --#2 #3
 lemma output_is_perm {α: Type} (f: α -> α -> bool): ∀ (unsorted: list α),
-mergeSort (f) unsorted ~ unsorted
+mergeSort f unsorted ~ unsorted
 -- input: unsortedl sortedl lists, one is sorted ver. of the other
 -- output: bool if all elements in unsortedl are in sortedl
 :=
@@ -374,7 +367,7 @@ begin
         {
           apply perm_concats,
           apply ih,
-          apply smallersplit_2, --?
+          apply smallersplit_2,
           apply ih,
           apply smallersplit_right_2,
         },
@@ -397,12 +390,109 @@ end
 
 --output is sorted: defining "sorted"
 
--- Merging two sorted lists should produce a sorted list 
-lemma merging_two_sorted {α : Type} {r : α → α → Prop} (f: α -> α -> bool): ∀ (a b: list α), 
-(list.sorted r a) → sorted b   
-:=
+
+
+-- r
+def sort_rel {α: Type} (f: α → α → bool): α → α → Prop :=
+λ x y, f x y = tt
+
+
+lemma element_of_merged {α : Type} (f: α → α → bool): 
+ ∀ (x: α) (as bs: list α), x ∈ merge f as bs → x ∈ as ∨ x ∈ bs
+| x [] b := 
 begin
+  intros hx,
+  rw merge at hx,
+  tauto,
+end
+| x (a::as) [] := --if we patten match on smth, its out of scope, that's why a is diff. than the outer a here.
+begin
+  intros has,
+  rw merge at has,
+  tauto,
+end
+| x (a::as) (b::bs) :=
+begin
+  intros hab,
+  --induction (a::as) using list.strong_length_induction with d ih,
   sorry
-end    
+  /-
+  rw merge at hab,
+  by_cases hf : (f a b: Prop),
+  {
+    rw [if_pos hf] at hab,
+    cases' hab, 
+    {
+      finish,
+    },
+    {
+      sorry
+    }, 
+    
+    
+
+
+  }-/
+end
+
+
+-- Merging two sorted lists should produce a sorted list 
+lemma merging_two_sorted {α : Type} (f: α → α → bool): ∀ (as bs: list α),
+  list.sorted (sort_rel f) as →
+  list.sorted (sort_rel f) bs →
+  list.sorted (sort_rel f) (merge f as bs)
+| [] bs :=
+  begin
+    intros hn hbs,
+    rw merge,
+    exact hbs,
+  end
+| (a::as) [] :=
+  begin
+    intros has hn,
+    rw merge,
+    exact has,
+  end
+| (a::as) (b::bs) :=
+  begin
+    intros has hbs,
+    rw merge,
+    by_cases hf : (f a b : Prop),
+    {
+      rw [if_pos hf], 
+      simp,
+      split, -- split the ∧ in the goal
+      { -- for all ds from result, a is smaller than d
+        intros d hm,
+        rw sort_rel, --is another lemma needed here?
+        have haaas: ∀ (a2: α), a2 ∈ as → f a a2,
+        {
+          intros a' ha',
+          sorry
+          
+        }
+        
+      
+
+      },
+      {
+        apply merging_two_sorted,
+        { 
+          rw list.sorted at has, --list.pairwise wouldn't unfold bc. it's an inductive type
+          cases has with _ _ hpas' hpas,
+          exact hpas,
+        },
+        {
+          exact hbs,
+        }
+      }
+    },
+    {
+      rw [if_neg hf],
+      sorry
+
+    }, 
+
+  end
 
 
