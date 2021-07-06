@@ -382,7 +382,6 @@ begin
   },
 end
 
-
 #check list.perm
 #check list.perm.nil
 #check nat 
@@ -391,7 +390,7 @@ end
 --output is sorted: defining "sorted"
 
 
-
+--better naming
 -- r
 def sort_rel {α: Type} (f: α → α → bool): α → α → Prop :=
 λ x y, f x y = tt
@@ -414,30 +413,59 @@ end
 | x (a::as) (b::bs) :=
 begin
   intros hab,
-  --induction (a::as) using list.strong_length_induction with d ih,
-  sorry
-  /-
   rw merge at hab,
   by_cases hf : (f a b: Prop),
   {
     rw [if_pos hf] at hab,
-    cases' hab, 
+    cases hab, 
     {
-      finish,
+      left,
+      left,
+      exact hab,
     },
     {
-      sorry
-    }, 
-    
-    
-
-
-  }-/
+      have h' := element_of_merged _ _ _ hab,
+      clear element_of_merged,
+      cases h',
+      {
+        left,
+        right,
+        exact h',
+      },
+      {
+        right,
+        exact h',
+      }
+    }
+  },
+  {
+    rw [if_neg hf] at hab,
+    cases hab, 
+    {
+      right,
+      exact or.inl hab, --proving a left stat. giving the left proof
+    },
+    {
+      have h' := element_of_merged _ _ _ hab,
+      clear element_of_merged,
+      cases h',
+      {
+        left,
+        exact h',
+      },
+      {
+        right,
+        exact or.inr h',
+      }
+    }
+  },
 end
 
-
 -- Merging two sorted lists should produce a sorted list 
-lemma merging_two_sorted {α : Type} (f: α → α → bool): ∀ (as bs: list α),
+lemma merging_two_sorted {α : Type} (f: α → α → bool) (tr: transitive (sort_rel f))
+(tr' : ∀ x y z, ¬ sort_rel f y x → sort_rel f y z → sort_rel f x z) 
+(ng : ∀ x y, ¬ sort_rel f y x → sort_rel f x y)
+(ng' : ∀ x y, ¬ f y x → f x y) : ∀ (as bs: list α),
   list.sorted (sort_rel f) as →
   list.sorted (sort_rel f) bs →
   list.sorted (sort_rel f) (merge f as bs)
@@ -456,6 +484,24 @@ lemma merging_two_sorted {α : Type} (f: α → α → bool): ∀ (as bs: list �
 | (a::as) (b::bs) :=
   begin
     intros has hbs,
+    have haq : ∀ j, j ∈ as → sort_rel f a j,
+    {
+      intros j hj,
+      rw list.sorted at has,
+      rw list.pairwise_cons at has,
+      cases has with has_l has_r,
+      apply has_l _ hj,
+      -- and the same thing for b bs
+      -- either find a lemma or write one 
+    },
+    have hbq : ∀ j, j ∈ bs → sort_rel f b j,
+    {
+      intros j hj,
+      rw list.sorted at hbs,
+      rw list.pairwise_cons at hbs,
+      cases hbs with hbs_l hbs_r,
+      apply hbs_l _ hj, 
+    },
     rw merge,
     by_cases hf : (f a b : Prop),
     {
@@ -464,16 +510,36 @@ lemma merging_two_sorted {α : Type} (f: α → α → bool): ∀ (as bs: list �
       split, -- split the ∧ in the goal
       { -- for all ds from result, a is smaller than d
         intros d hm,
-        rw sort_rel, --is another lemma needed here?
-        have haaas: ∀ (a2: α), a2 ∈ as → f a a2,
+        --
+        have had := element_of_merged f d as (b::bs) hm,
+        cases had,
         {
-          intros a' ha',
-          sorry
-          
+          rw list.sorted at has,
+          rw list.pairwise_cons at has,
+          cases has with has_l has_r,
+          apply has_l _ had, --apply or specialize would work here
+        },
+        {
+          simp at had,
+          cases had,
+          {
+            subst had, -- is it okay that subst here substitutes d somewhere else than the goal?
+            exact hf,
+          },
+          {
+            apply tr,
+            {
+              exact hf,
+            },
+            {
+              simp at hbs,
+              cases hbs with hbs_l hbs_r,
+              apply hbs_l,
+              exact had,
+              --resembles the first had case
+            }
+          }
         }
-        
-      
-
       },
       {
         apply merging_two_sorted,
@@ -489,10 +555,46 @@ lemma merging_two_sorted {α : Type} (f: α → α → bool): ∀ (as bs: list �
     },
     {
       rw [if_neg hf],
-      sorry
-
+      simp,
+      split,
+      {
+        intros k hk,
+        have hk' := element_of_merged _ _ _ _ hk,
+        cases hk',
+        {
+          cases hk',
+          {
+            apply ng',
+            have hak: a = k,
+            {
+              exact eq.symm hk',
+            },
+            subst hak,
+            exact hf,            
+          },
+          {
+            have fak := haq _ hk',
+            have fba := ng _ _ hf,
+            apply tr fba fak,
+          }
+        },
+        {
+          apply hbq _,
+          exact hk',
+        }
+      },
+      {
+        apply merging_two_sorted,
+        { 
+          exact has,
+        },
+        {
+          rw list.sorted at hbs,
+          cases hbs with _ _ hpbs' hpbs,
+          exact hpbs,
+        }
+      }
     }, 
-
   end
 
 
