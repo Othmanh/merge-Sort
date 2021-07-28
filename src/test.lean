@@ -4,6 +4,7 @@ import data.nat.basic
 import data.list.sort
 open nat
 
+/- This lemma applies the strong induction principle on the lenght of a list. -/
 @[elab_as_eliminator]
 lemma list.strong_length_induction {α} {C : list α → Sort*}
   (rec : ∀ xs : list α, (∀ ys : list α, ys.length < xs.length → C ys) → C xs) :
@@ -11,140 +12,77 @@ lemma list.strong_length_induction {α} {C : list α → Sort*}
 | xs := rec xs (λ ys len, list.strong_length_induction ys)
 using_well_founded { rel_tac := λ _ _, `[ exact ⟨_, measure_wf list.length ⟩]}
 
-example: forall (a b: nat), a + b = b + a := by intros;linarith
 
--- notes:
--- symmetry, --flips the sides of any goal, if the goal is about a symm rel
--- induction x generalizing a b, --when the indc. is too rest. generalizing the goal could be a way.
--- cases' works best in cases where there's a constructor in the equation. 
+/- The function split takes a list α, splits it and returns the two halves in a tuple. -/
+def split {α : Type} : list α → list α × list α
+| xs := (list.take (xs.length/2) xs, list.drop (xs.length/2) xs)
 
-def split {α: Type} : list α -> list α × list α
-| [] := ([] , [])
-| [a] := ([a], [])
-| f := (list.take (f.length/2) f, list.drop (f.length/2) f)
-
-
-
-lemma add_nils {α: Type} : [] ++ [] ~ @list.nil α 
+/- This lemma proves that the first split half of a list, using the function split, is smaller in length than the original list. -/
+lemma split_dec_fst {α : Type} : ∀ (x x' : α) (xs : list α),
+  (split (x :: x' :: xs)).fst.length < (x :: x' :: xs).length
 :=
 begin
-  refl,
-end   
-
-lemma split_preserves_enhanced_2 {α : Type} : ∀ (x: list α) , 
-(split x).fst ++ (split x).snd ~ x   
-:=
-begin
-  intros x,
-  cases' x,
-  case nil {
-    refl,
-  },
-  case cons: c {
-    cases' x,
-    case nil {
-      rw split,
-      refl,
-    },
-    case cons: d {
-      rw split,
-      simp,
-    }
-  },
+  intros x x' xs,
+  simp [split],
+  ring_nf,
+  exact div_lt_self' (xs.length + 1) 0,
 end
 
-lemma split_preserves_enhanced {α : Type} : ∀ (x: list α) , 
-(split x).fst ++ (split x).snd = x   
+lemma split_dec_snd {α : Type} : ∀ (x x' : α) (xs : list α), 
+  ((split (x :: x' :: xs)).snd).length < ((x :: x' :: xs).length)
 :=
 begin
-  intros x,
-  cases' x,
-  case nil {
-    refl,
-  },
-  case cons: c {
-    cases' x,
-    case nil {
-      rw split,
-      refl,
-    },
-    case cons: d {
-      rw split,
-      simp,
-    }
-  }
+  intros x x' xs,
+  rw split,
+  simp, 
+  ring_nf,
+  apply nat.sub_lt_self,
+  linarith,
+  norm_num, 
 end
 
-/-
-list.take produces a sublist and it's a sub perm 
-list.drop produces a sublist and it's a sub perm
-a is a sub perm then and b too
-a ++ b is a perm then 
--/
-lemma split_preserves {α : Type} : ∀ (x a b: list α) , split x = (a, b) → 
-(append a b) = x   
+/- This lemma proves that concatenating the two split halves of a list produces 
+   a permutation of the original list. -/
+lemma split_preserves {α : Type} : ∀ (xs : list α), 
+  (split xs).fst ++ (split xs).snd ~ xs   
 :=
 begin
-  intros x a b hx,
-  cases' x,
-  case nil {
-    cases' hx,
-    refl,
-  },
-  case cons: c {
-    cases' x,
-    case nil {
-      rw split at hx,
-      finish,
-    },
-    case cons: d {
-      rw split at hx,
-      cases' hx, 
-      exact list.take_append_drop ((c :: d :: x).length / 2) (c :: d :: x)
-    }
-  }
-end 
+  intros xs,
+  simp [split]
+end
 
--- Merge
 
-def merge {α : Type} (lt: α → α → bool) : list α → list α → list α
-| [] a := a
-| (h1::t1) [] := h1::t1
+/- The merge function takes two lists and recursively merges them into one ordered list. -/
+def merge {α : Type} (lt : α → α → bool) : list α → list α → list α
+| [] a              := a
+| (h1::t1) []       := h1::t1
 | (h1::t1) (h2::t2) :=
-if lt h1 h2 then (h1 :: (merge t1 (h2::t2)))
-else (h2 :: (merge (h1::t1) t2))
+  if lt h1 h2
+    then (h1 :: (merge t1 (h2::t2)))
+    else (h2 :: (merge (h1::t1) t2))
 
---try solving it using the first one above 
-
--- length is odd!
-
- -- if list is empty -> []
- -- if list has [a] -> [a]
- -- otherwise split
-
-lemma merge_preserves {α: Type} (lt: α → α → bool): ∀ (as bs: list α) ,  
-merge lt as bs ~ as ++ bs  
+/- This lemma proves that merging two lists together produces a list that is a permutation
+   of the two input lists concatenated together. -/
+lemma merge_preserves {α : Type} (lt : α → α → bool) : ∀ (as bs : list α),  
+  merge lt as bs ~ as ++ bs   
 | [] bs :=
 begin
   rw merge,
   simp,
-  --subst hbs, --when there's an equation, it replaces everything in the goal with the eq
 end
-| (a::as) [] :=
+| (a :: as) [] :=
 begin
   rw merge,
   simp,
 end
-| (a::as) (b::bs) :=
+| (a :: as) (b :: bs) :=
 begin
-  --intros x hx, --watch out that you could write non-terminating functions
-  -- this will give a well founded error
   rw merge,
-  by_cases hab: (lt a b: Prop),
+  by_cases hab: (lt a b : Prop),
   {
     rw [if_pos hab],
     simp,
-    apply merge_preserves as (b::bs), --matching recursion with induc.
+    apply merge_preserves as (b :: bs), 
   },
   {
     rw [if_neg hab],
@@ -166,181 +104,24 @@ begin
   }
 end
 
---?
--- added to meet the goal at the verification where it asked for 
--- the goal to be of the shape below
-lemma smallersplit_2 {α: Type}: ∀ (a b: α) (bs: list α),
-(split (a :: b :: bs)).fst.length < (a :: b :: bs).length
-:=
-begin
-  intros a b bs,
-  rw split,
-  simp,
-  ring_nf,
-  exact div_lt_self' (bs.length + 1) 0,
-end
+/- The function mergeSort -/
+def mergeSort {α : Type} (lt : α -> α -> bool) : list α → list α
+| []             := []
+| [a]            := [a]
+| (a :: b :: xs) :=
+  let p  := split (a :: b :: xs) in
+  let as := p.fst in
+  let bs := p.snd in
+  let h1 : as.length < (a :: b :: xs).length := split_dec_fst _ _ _ in
+  let h2 : bs.length < (a :: b :: xs).length := split_dec_snd _ _ _ in
+  merge lt (mergeSort as) (mergeSort bs)
+  using_well_founded { rel_tac := λ _ _, `[exact ⟨_, measure_wf list.length⟩] }
 
 
-lemma smallersplit {α: Type} : ∀ (a b: α) (xs as bs: list α) , split (a::b::xs) = (as,bs) →
-(as.length < (a::b::xs).length) 
-:=
-begin
-  intros a b xs as bs h,
-  simp [h, smallersplit_2],
-  have has: (split(a::b::xs)).fst = as,
-  {
-    simp [h],
-  },
-  subst has,
-  apply smallersplit_2,
-end
-
---#check div_lt_self' 
-
---{a: ℕ} : implicit arg. 
-lemma smaller_than_its_half (a : ℕ) : (a + 2) - ((a+2)/2) < a+2 
-:= 
-begin 
-  apply nat.sub_lt_self,
-  linarith,
-  simp,
-end
-
-lemma smallersplit_right_2 {α: Type} : ∀ (a b: α) (xs: list α) , 
-((split (a::b::xs)).snd).length < ((a::b::xs).length)
-:=
-begin
-intros a b xs,
-rw split,
-simp, 
-ring_nf,
-apply smaller_than_its_half, 
-end
-
-lemma smallersplit_right {α: Type} : ∀ (a b: α) (xs as bs: list α) , split (a::b::xs) = (as,bs) →
-(bs.length < (a::b::xs).length)
-:=
-begin
-  intros a b xs as bs h,
-  have hbs: (split(a::b::xs)).snd = bs,
-  {
-    simp [h],
-  },
-  subst hbs,
-  apply smallersplit_right_2,
-end
-
-
-def mergeSort {α: Type} (f: α -> α -> bool) : list α → list α
-| [] := []
-| (a::[]) := [a]
-| (a::b::xs) := let p := split (a::b::xs) in
-let as := p.fst in
-let bs := p.snd in
-let pa : as.length < (a::b::xs).length := smallersplit a b xs as bs (by tauto) in
-let da : bs.length < (a::b::xs).length := smallersplit_right a b xs as bs (by tauto) in
-merge f (mergeSort as) (mergeSort bs)
-using_well_founded { rel_tac := λ _ _, `[exact ⟨_, measure_wf list.length⟩] }
-
-
-/-
-def mergeSort' : ∀ {α} , (α-> α -> bool) -> list α -> list α
-:= λ α f xs , sorry
--/
-
-/-
-proving correct
-1. list is sorted: define what it means to be sorted
-2. list must contain all elements of the input list: no element is forgotten
-3. result contains only the input elements: none new added
--/
-
-
-/-
-Coding style:
-1. spaces between elements and their type
-2. spaces between a lemma and its args
-3. around colons
-4. indentation
-5. ∀ (), no space before comma
-6. indent type sign by either 2 or 4 spaces (314)
-7. begin and end no indent
-8. := same line as sign.
-9. always a space between a func and its arg: split (...)
-10. one line caes on the same line
-
--/
-
-lemma list.perm_nil_cons_2 {α : Type} {y : α} {xs ys: list α}: list.nil ~ xs → xs = list.nil → xs ++ y :: ys ~ y :: ys  -- ~ @list.nil α 
-:=
-begin
-  intros hxs hxs',
-  finish,
-end
-
-lemma perm_concats_2 {α : Type} : ∀ (xs xs' ys ys': list α),
-  xs ~ xs' → ys ~ ys' → xs ++ ys ~ xs' ++ ys' :=
-begin
-  intros xs xs' ys ys' hxs hys,
-  exact list.perm.append hxs hys,
-end 
-
-lemma perm_concats {α : Type}:∀ (xs xs' ys ys': list α) ,
-xs ~ xs' → ys ~ ys' → xs ++ ys ~ xs' ++ ys'
-:=
-begin
-  intros xs xs' ys ys' hxs hys,
-  cases xs,
-  case nil {
-    simp,
-    transitivity,
-    { apply hys },
-    { symmetry,
-      cases ys',
-      case nil
-      {
-        simp,
-        exact list.perm.symm hxs,
-      },
-      case cons: y ys' { --is it okay that ys' here as a name refers to the tail of ys'
-        apply list.perm_nil_cons_2,
-        {
-          exact hxs,
-        },
-        {
-          exact list.perm_nil.mp (list.perm.symm hxs),
-        }
-      }
-    },
-  },
-  case cons: x xs { --here the naming case again, xs refers to the tail of xs
-    exact list.perm.append hxs hys,
-  }
-
-end
-
-/-
---are the curly brackets here okay?
-lemma list.perm_nil_cons {α: Type} {xs ys: list α}: list.nil ~ xs → xs ++ ys ~ ys  -- ~ @list.nil α 
-:=
-begin
-  intros hxs,
-  cases ys,
-  case nil {
-    simp,
-    exact list.perm.symm hxs,
-  },
-  case cons: y ys {
-    sorry
-  }
-end   
--/
-
---#2 #3
-lemma output_is_perm {α: Type} (f: α -> α -> bool): ∀ (unsorted: list α),
-mergeSort f unsorted ~ unsorted
--- input: unsortedl sortedl lists, one is sorted ver. of the other
--- output: bool if all elements in unsortedl are in sortedl
+/- This lemma proves that sorting a list using mergeSort produces a permutation 
+   of that list. -/
+lemma mergeSort_preserves {α : Type} (lt : α -> α -> bool) : ∀ (xs : list α),
+  mergeSort lt xs ~ xs
 :=
 begin
   intros unsorted,
@@ -350,14 +131,13 @@ begin
   case nil {
     rw mergeSort
   },
-  case cons: a xs {
+  case cons: x xs {
     cases xs,
     case nil {
       rw mergeSort,
     },
-    case cons: b bs {
-      rw mergeSort,
-      simp,
+    case cons: x' xs {
+      simp [mergeSort],
       transitivity,
       {
         apply merge_preserves,
@@ -365,58 +145,50 @@ begin
       {
         transitivity,
         {
-          apply perm_concats,
+          apply list.perm.append _ _,
+          swap 3,
           apply ih,
-          apply smallersplit_2,
+          apply split_dec_fst,
+          swap,
           apply ih,
-          apply smallersplit_right_2,
+          apply split_dec_snd,
         },
         {
-          apply split_preserves_enhanced_2,
+          apply split_preserves,
         }
       }
-      -- split-doesn't lose elements
-      -- merge doesn't lose elements
-      -- splitting produces smaller lists
     }, 
   },
 end
 
-#check list.perm
-#check list.perm.nil
-#check nat 
-#check list
 
---output is sorted: defining "sorted"
+/- This function transforms function lt to a decidable Prop. -/
+def r {α : Type} (lt : α → α → bool) : α → α → Prop :=
+  λ x y, lt x y = tt
 
-
---better naming
--- r
-def sort_rel {α: Type} (f: α → α → bool): α → α → Prop :=
-λ x y, f x y = tt
-
-
-lemma element_of_merged {α : Type} (f: α → α → bool): 
- ∀ (x: α) (as bs: list α), x ∈ merge f as bs → x ∈ as ∨ x ∈ bs
-| x [] b := 
+/- This lemma proves that if we merge two lists using merge, all elements of
+   the returned list belonged to either of the two original lists. -/
+lemma element_of_merge {α : Type} (lt : α → α → bool): 
+ ∀ (x : α) (as bs: list α), x ∈ merge lt as bs → x ∈ as ∨ x ∈ bs
+| x [] as := 
 begin
   intros hx,
   rw merge at hx,
   tauto,
 end
-| x (a::as) [] := --if we patten match on smth, its out of scope, that's why a is diff. than the outer a here.
+| x (a :: as) [] := 
 begin
   intros has,
   rw merge at has,
   tauto,
 end
-| x (a::as) (b::bs) :=
+| x (a :: as) (b :: bs) :=
 begin
   intros hab,
   rw merge at hab,
-  by_cases hf : (f a b: Prop),
-  {
-    rw [if_pos hf] at hab,
+  by_cases hf : (lt a b : Prop), 
+  { 
+    rw [if_pos hf] at hab,  
     cases hab, 
     {
       left,
@@ -424,8 +196,8 @@ begin
       exact hab,
     },
     {
-      have h' := element_of_merged _ _ _ hab,
-      clear element_of_merged,
+      have h' := element_of_merge _ _ _ hab,
+      clear element_of_merge,  
       cases h',
       {
         left,
@@ -443,11 +215,11 @@ begin
     cases hab, 
     {
       right,
-      exact or.inl hab, --proving a left stat. giving the left proof
+      exact or.inl hab, 
     },
     {
-      have h' := element_of_merged _ _ _ hab,
-      clear element_of_merged,
+      have h' := element_of_merge _ _ _ hab,
+      clear element_of_merge,
       cases h',
       {
         left,
@@ -461,69 +233,65 @@ begin
   },
 end
 
--- Merging two sorted lists should produce a sorted list 
-lemma merging_two_sorted {α : Type} (f: α → α → bool) (tr: transitive (sort_rel f))
-(tr' : ∀ x y z, ¬ sort_rel f y x → sort_rel f y z → sort_rel f x z) 
-(ng : ∀ x y, ¬ sort_rel f y x → sort_rel f x y)
-(ng' : ∀ x y, ¬ f y x → f x y) : ∀ (as bs: list α),
-  list.sorted (sort_rel f) as →
-  list.sorted (sort_rel f) bs →
-  list.sorted (sort_rel f) (merge f as bs)
+/- This lemma proves that, given two sorted lists, the list returned by merging 
+   the two lists together using merge is sorted as well. -/
+lemma merge_sorted {α : Type} (lt : α → α → bool) (tr : transitive (r lt))
+(ng : ∀ x y, ¬ r lt y x → r lt x y) : ∀ (as bs: list α), 
+  list.sorted (r lt) as →  
+  list.sorted (r lt) bs → 
+  list.sorted (r lt) (merge lt as bs)
 | [] bs :=
   begin
     intros hn hbs,
     rw merge,
     exact hbs,
   end
-| (a::as) [] :=
+| (a :: as) [] :=
   begin
     intros has hn,
     rw merge,
     exact has,
   end
-| (a::as) (b::bs) :=
+| (a :: as) (b :: bs) :=
   begin
     intros has hbs,
-    have haq : ∀ j, j ∈ as → sort_rel f a j,
+    have haq : ∀ q, q ∈ as → r lt a q,
     {
-      intros j hj,
+      intros q hq,
       rw list.sorted at has,
       rw list.pairwise_cons at has,
       cases has with has_l has_r,
-      apply has_l _ hj,
-      -- and the same thing for b bs
-      -- either find a lemma or write one 
+      apply has_l _ hq,
     },
-    have hbq : ∀ j, j ∈ bs → sort_rel f b j,
+    have hbq : ∀ q, q ∈ bs → r lt b q,
     {
-      intros j hj,
+      intros q hq,
       rw list.sorted at hbs,
       rw list.pairwise_cons at hbs,
       cases hbs with hbs_l hbs_r,
-      apply hbs_l _ hj, 
+      apply hbs_l _ hq, 
     },
     rw merge,
-    by_cases hf : (f a b : Prop),
+    by_cases hf : (lt a b : Prop),
     {
       rw [if_pos hf], 
       simp,
-      split, -- split the ∧ in the goal
-      { -- for all ds from result, a is smaller than d
+      split, 
+      { 
         intros d hm,
-        --
-        have had := element_of_merged f d as (b::bs) hm,
+        have had := element_of_merge lt d as (b :: bs) hm,
         cases had,
         {
           rw list.sorted at has,
           rw list.pairwise_cons at has,
           cases has with has_l has_r,
-          apply has_l _ had, --apply or specialize would work here
+          apply has_l _ had, 
         },
         {
           simp at had,
           cases had,
           {
-            subst had, -- is it okay that subst here substitutes d somewhere else than the goal?
+            subst had, 
             exact hf,
           },
           {
@@ -536,15 +304,14 @@ lemma merging_two_sorted {α : Type} (f: α → α → bool) (tr: transitive (so
               cases hbs with hbs_l hbs_r,
               apply hbs_l,
               exact had,
-              --resembles the first had case
             }
           }
         }
       },
       {
-        apply merging_two_sorted,
+        apply merge_sorted,
         { 
-          rw list.sorted at has, --list.pairwise wouldn't unfold bc. it's an inductive type
+          rw list.sorted at has,
           cases has with _ _ hpas' hpas,
           exact hpas,
         },
@@ -559,18 +326,13 @@ lemma merging_two_sorted {α : Type} (f: α → α → bool) (tr: transitive (so
       split,
       {
         intros k hk,
-        have hk' := element_of_merged _ _ _ _ hk,
+        have hk' := element_of_merge _ _ _ _ hk,
         cases hk',
         {
           cases hk',
           {
-            apply ng',
-            have hak: a = k,
-            {
-              exact eq.symm hk',
-            },
-            subst hak,
-            exact hf,            
+            subst hk',
+            exact ng b k hf,
           },
           {
             have fak := haq _ hk',
@@ -584,7 +346,7 @@ lemma merging_two_sorted {α : Type} (f: α → α → bool) (tr: transitive (so
         }
       },
       {
-        apply merging_two_sorted,
+        apply merge_sorted,
         { 
           exact has,
         },
@@ -597,4 +359,35 @@ lemma merging_two_sorted {α : Type} (f: α → α → bool) (tr: transitive (so
     }, 
   end
 
-
+/- This lemma proves that mergeSort returns a sorted list. -/
+lemma mergeSort_sorts {α : Type} (lt : α → α → bool) (tr : transitive (r lt)) 
+  (ng : ∀ x y, ¬ r lt y x → r lt x y) : ∀ (xs : list α), 
+  list.sorted (r lt) (mergeSort lt xs)
+:=
+begin
+  intros xs,
+  induction xs using list.strong_length_induction with xs ih,
+  simp at ih,
+  cases xs,
+  case nil {
+    simp [mergeSort],
+  },
+  case cons: x xs {
+    cases xs,
+    case nil {
+      simp [mergeSort],
+    },
+    case cons: x' xs {
+      simp [mergeSort],
+      apply merge_sorted lt; try { assumption },
+      {
+        apply ih,
+        apply split_dec_fst,
+      },
+      {
+        apply ih,
+        apply split_dec_snd,
+      }
+    }
+  },
+end
